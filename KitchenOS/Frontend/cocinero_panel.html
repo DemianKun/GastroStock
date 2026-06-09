@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>GastroStock | Estación de Cocina</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"/>
+    <style>
+        body { background-color: #020617; color: #cbd5e1; font-family: sans-serif; }
+        .glass-card { background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255,255,255,0.05); }
+        .step-item { counter-increment: step-counter; }
+        .step-item::before {
+            content: counter(step-counter);
+            background: #ea580c;
+            color: white;
+            font-weight: 900;
+            font-size: 10px;
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 8px;
+            flex-shrink: 0;
+        }
+        ol { counter-reset: step-counter; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #ea580c44; border-radius: 4px; }
+    </style>
+</head>
+<body class="p-6 min-h-screen flex flex-col">
+    <header class="flex justify-between items-end mb-6 border-b border-white/5 pb-4">
+        <div class="flex items-center gap-4">
+            <img src="img/logo.jpg" alt="GastroStock Logo" class="w-12 h-12 rounded-full border-2 border-orange-500 object-cover shadow-[0_0_15px_rgba(249,115,22,0.3)]">
+            <div>
+                <h1 class="text-3xl font-black italic text-orange-500 tracking-tighter leading-none">GastroStock <span class="text-white text-xl font-bold not-italic">Estación de Cocina</span></h1>
+                <h2 id="welcome-msg" class="text-sm font-bold text-slate-400 mt-1">Cocinero: ---</h2>
+            </div>
+        </div>
+        <button onclick="cerrarSesion()" class="text-xs font-bold text-red-500 hover:text-white border border-red-500/30 px-4 py-2 rounded-lg hover:bg-red-500 transition-all">CERRAR SESIÓN</button>
+    </header>
+
+    <main class="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1">
+        <!-- Panel izquierdo: Propuestas -->
+        <div class="glass-card p-6 rounded-[2rem] border border-orange-500/30 relative overflow-hidden shadow-lg flex flex-col">
+            <div class="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-600 to-yellow-400"></div>
+            <h3 class="text-sm font-black text-orange-500 mb-4 uppercase tracking-widest flex items-center gap-2">
+                <span class="animate-pulse">🔔</span> Propuestas Disponibles
+            </h3>
+            <div id="panel-propuestas" class="space-y-3 overflow-y-auto flex-1">
+                <p class="text-xs text-slate-500 italic">Buscando propuestas de la IA...</p>
+            </div>
+        </div>
+
+        <!-- Panel derecho: Mi Tarea con detalles -->
+        <div class="glass-card p-6 rounded-[2rem] flex flex-col overflow-hidden">
+            <h3 class="text-sm font-black text-blue-400 mb-4 uppercase tracking-widest flex items-center gap-2">
+                👨‍🍳 Mi Tablero de Trabajo
+            </h3>
+            <div id="panel-mi-tarea" class="space-y-4 overflow-y-auto flex-1">
+                <p class="text-xs text-slate-500 italic">Sincronizando datos de tu estación...</p>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const API_URL = "http://localhost:8000";
+        const userId   = localStorage.getItem('user_id');
+        const token    = localStorage.getItem('access_token');
+        const username = localStorage.getItem('username');
+
+        if (!token) window.location.href = 'index.html';
+        document.getElementById('welcome-msg').innerText = `Cocinero: ${username}`;
+
+        // Cache de recetas para no pedir repetidamente
+        let recetasCache = {};
+
+        async function obtenerReceta(nombre) {
+            if (recetasCache[nombre]) return recetasCache[nombre];
+            try {
+                const res = await fetch(`${API_URL}/api/recetas`, { headers: { 'Authorization': `Bearer ${token}` } });
+                const recetas = await res.json();
+                recetas.forEach(r => { recetasCache[r.nombre] = r; });
+                return recetasCache[nombre] || null;
+            } catch { return null; }
+        }
+
+        function renderIngredientes(ingredientes_json) {
+            if (!ingredientes_json) return '';
+            const items = Object.entries(ingredientes_json).map(([ing, cant]) => `
+                <div class="flex items-center justify-between bg-black/30 px-3 py-2 rounded-lg">
+                    <span class="text-slate-300 text-xs font-semibold">🥩 ${ing}</span>
+                    <span class="text-orange-400 text-xs font-black">${cant} kg</span>
+                </div>
+            `).join('');
+            return `
+                <div>
+                    <p class="text-[10px] text-orange-400 font-bold uppercase tracking-widest mb-2">📦 Ingredientes necesarios</p>
+                    <div class="space-y-1">${items}</div>
+                </div>
+            `;
+        }
+
+        function renderPreparacion(descripcion) {
+            if (!descripcion) return '';
+            const pasos = descripcion.split('\n').filter(p => p.trim());
+            const items = pasos.map(p => {
+                // Elimina el número inicial si lo tiene (ej: "1. Corta...")
+                const texto = p.replace(/^\d+\.\s*/, '');
+                return `<li class="step-item flex items-start text-xs text-slate-300 leading-relaxed">${texto}</li>`;
+            }).join('');
+            return `
+                <div>
+                    <p class="text-[10px] text-blue-400 font-bold uppercase tracking-widest mb-2">📋 Pasos de Preparación</p>
+                    <ol class="space-y-2">${items}</ol>
+                </div>
+            `;
+        }
+
+        async function cargarTableros() {
+            try {
+                // 1. Propuestas de la IA
+                const resP = await fetch(`${API_URL}/api/tareas/propuestas`, { headers: { 'Authorization': `Bearer ${token}` } });
+                const propuestas = await resP.json();
+
+                const contP = document.getElementById('panel-propuestas');
+                if (propuestas.length === 0) {
+                    contP.innerHTML = `<p class="text-xs text-slate-500 italic">La IA está analizando el inventario. No hay recetas viables aún.</p>`;
+                } else {
+                    const cards = await Promise.all(propuestas.map(async p => {
+                        const receta = await obtenerReceta(p.receta_nombre);
+                        const ingHtml = receta ? renderIngredientes(receta.ingredientes_json) : '';
+                        return `
+                            <div class="bg-black/50 p-4 rounded-xl border border-orange-500/20 animate__animated animate__fadeIn">
+                                <div class="flex justify-between items-start mb-3">
+                                    <div>
+                                        <p class="text-base font-black text-white">${p.receta_nombre}</p>
+                                        <p class="text-[9px] text-orange-400 uppercase tracking-widest mt-0.5">¡Insumos listos en bodega!</p>
+                                    </div>
+                                    <button onclick="aceptarTarea(${p.id})" class="bg-orange-600 hover:bg-orange-500 text-white font-black text-[10px] px-4 py-2 rounded-xl transition-transform active:scale-95 shadow-lg shadow-orange-600/20 whitespace-nowrap ml-3">
+                                        ACEPTAR ORDEN
+                                    </button>
+                                </div>
+                                ${ingHtml}
+                            </div>
+                        `;
+                    }));
+                    contP.innerHTML = cards.join('');
+                }
+
+                // 2. Mi tarea activa
+                const resT = await fetch(`${API_URL}/api/tareas/activas`, { headers: { 'Authorization': `Bearer ${token}` } });
+                const activas = await resT.json();
+                const miTarea = activas.find(t => t.cocinero === username);
+
+                const contT = document.getElementById('panel-mi-tarea');
+                if (miTarea) {
+                    const receta = await obtenerReceta(miTarea.receta);
+                    const ingHtml  = receta ? renderIngredientes(receta.ingredientes_json) : '';
+                    const prepHtml = receta ? renderPreparacion(receta.descripcion) : '';
+
+                    const estadoColor = miTarea.estado === 'EN_PROCESO'
+                        ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30'
+                        : 'bg-blue-500/20 text-blue-300 border-blue-500/30';
+
+                    contT.innerHTML = `
+                        <div class="bg-blue-900/20 p-5 rounded-2xl border border-blue-500/30 animate__animated animate__fadeIn space-y-4">
+                            <div>
+                                <p class="text-[10px] text-blue-300 font-bold uppercase tracking-widest mb-1">Orden en curso</p>
+                                <p class="text-2xl font-black text-white mb-2">${miTarea.receta}</p>
+                                <span class="inline-block ${estadoColor} text-[10px] px-3 py-1 rounded-full font-bold uppercase border">
+                                    ESTADO: ${miTarea.estado}
+                                </span>
+                            </div>
+
+                            ${ingHtml}
+                            ${prepHtml}
+
+                            <button onclick="completarTarea(${miTarea.id})" class="bg-green-600 hover:bg-green-500 text-white font-black text-xs px-5 py-3 rounded-xl transition-transform active:scale-95 shadow-lg shadow-green-600/20 w-full mt-2">
+                                ✅ MARCAR COMO ENTREGADA
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    contT.innerHTML = `<p class="text-xs text-slate-500 italic">No tienes órdenes activas. ¡Acepta una receta del panel izquierdo para empezar!</p>`;
+                }
+            } catch (e) {
+                console.error("Sincronizando...", e);
+            }
+        }
+
+        async function aceptarTarea(idTarea) {
+            if (!userId) {
+                alert("Error crítico: ID de usuario no encontrado. Cierra sesión e ingresa de nuevo.");
+                return;
+            }
+            try {
+                const res = await fetch(`${API_URL}/api/tareas/aceptar/${idTarea}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ empleado_id: parseInt(userId) })
+                });
+                if (res.ok) {
+                    cargarTableros();
+                } else {
+                    const err = await res.json();
+                    alert("Alerta K-OS: " + (err.detail || "Error al aceptar la tarea"));
+                }
+            } catch (e) {
+                alert("Error de conexión.");
+            }
+        }
+
+        async function completarTarea(idTarea) {
+            if (!userId) return;
+            try {
+                const res = await fetch(`${API_URL}/api/tareas/completar/${idTarea}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ empleado_id: parseInt(userId) })
+                });
+                if (res.ok) cargarTableros();
+            } catch (e) {
+                alert("Error al completar la tarea.");
+            }
+        }
+
+        function cerrarSesion() {
+            localStorage.clear();
+            window.location.href = 'index.html';
+        }
+
+        cargarTableros();
+        setInterval(cargarTableros, 4000);
+    </script>
+</body>
+</html>

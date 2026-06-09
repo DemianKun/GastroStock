@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GastroStock | Acceso</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #020617; color: #cbd5e1; font-family: sans-serif; }
+        .glass-card { background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255,255,255,0.05); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="flex h-screen items-center justify-center relative overflow-hidden">
+
+    <!-- Orbes de fondo -->
+    <div class="absolute top-[-10%] left-[-10%] w-96 h-96 bg-orange-600/20 rounded-full blur-[100px] pointer-events-none"></div>
+    <div class="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-blue-600/20 rounded-full blur-[100px] pointer-events-none"></div>
+
+    <!-- Badge prototipo esquina superior derecha -->
+    <div class="absolute top-5 right-5 z-20 flex items-center gap-2 bg-orange-500/10 border border-orange-500/30 px-3 py-1.5 rounded-full">
+        <span class="w-2 h-2 rounded-full bg-orange-400 animate-pulse inline-block"></span>
+        <span class="text-[10px] font-black text-orange-400 uppercase tracking-widest">Prototipo v1.0</span>
+    </div>
+
+    <div class="glass-card p-10 rounded-[2rem] w-full max-w-md shadow-2xl relative z-10">
+        <div class="text-center mb-8 flex flex-col items-center">
+            <img src="img/logo.jpg" alt="GastroStock Logo" class="w-24 h-24 rounded-full border-2 border-orange-500 object-cover shadow-[0_0_20px_rgba(249,115,22,0.4)] mb-4">
+            <h1 class="text-4xl font-black italic text-white tracking-tighter">Gastro<span class="text-orange-500">Stock</span></h1>
+            <p class="text-[10px] uppercase font-bold text-slate-500 tracking-widest mt-2">Sistema autónomo de inventario inteligente<br>para restaurantes de alta producción</p>
+        </div>
+
+        <!-- Bullets de features -->
+        <div class="grid grid-cols-2 gap-2 mb-8">
+            <div class="bg-slate-900/60 rounded-xl p-3 flex items-center gap-2">
+                <span class="text-lg">⚖️</span>
+                <span class="text-[10px] text-slate-400 font-bold uppercase">Sensores IoT en tiempo real</span>
+            </div>
+            <div class="bg-slate-900/60 rounded-xl p-3 flex items-center gap-2">
+                <span class="text-lg">🤖</span>
+                <span class="text-[10px] text-slate-400 font-bold uppercase">IA de predicción</span>
+            </div>
+            <div class="bg-slate-900/60 rounded-xl p-3 flex items-center gap-2">
+                <span class="text-lg">👨‍🍳</span>
+                <span class="text-[10px] text-slate-400 font-bold uppercase">Asignación de tareas</span>
+            </div>
+            <div class="bg-slate-900/60 rounded-xl p-3 flex items-center gap-2">
+                <span class="text-lg">📲</span>
+                <span class="text-[10px] text-slate-400 font-bold uppercase">Alertas automáticas</span>
+            </div>
+        </div>
+
+        <div id="form-login" class="space-y-6">
+            <div>
+                <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Usuario</label>
+                <input type="text" id="log-user" class="w-full bg-slate-900/80 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-orange-500 transition-colors">
+            </div>
+            <div>
+                <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Contraseña</label>
+                <input type="password" id="log-pass" class="w-full bg-slate-900/80 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-orange-500 transition-colors">
+            </div>
+            <button onclick="login()" class="w-full bg-orange-600 hover:bg-orange-500 text-white py-3 rounded-xl text-sm font-black tracking-widest transition-all shadow-lg">ENTRAR</button>
+            <p class="text-center text-xs text-slate-500 mt-4">¿Eres nuevo en la cocina? <button onclick="toggleForms()" class="text-orange-400 font-bold hover:underline">Regístrate aquí</button></p>
+        </div>
+
+        <div id="form-register" class="space-y-6 hidden">
+            <div>
+                <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Nuevo Usuario (Cocinero)</label>
+                <input type="text" id="reg-user" placeholder="Ej. lalo_cocina" class="w-full bg-slate-900/80 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-orange-500 transition-colors">
+            </div>
+            <div>
+                <label class="block text-[10px] uppercase font-bold text-slate-400 mb-1">Crear Contraseña</label>
+                <input type="password" id="reg-pass" class="w-full bg-slate-900/80 border border-white/10 rounded-xl p-3 text-white outline-none focus:border-orange-500 transition-colors">
+            </div>
+            <button onclick="registrar()" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl text-sm font-black tracking-widest transition-all shadow-lg">CREAR CUENTA</button>
+            <p class="text-center text-xs text-slate-500 mt-4">¿Ya tienes cuenta? <button onclick="toggleForms()" class="text-orange-400 font-bold hover:underline">Inicia sesión</button></p>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://localhost:8000";
+
+        // Alternar entre login y registro
+        function toggleForms() {
+            document.getElementById('form-login').classList.toggle('hidden');
+            document.getElementById('form-register').classList.toggle('hidden');
+        }
+
+        async function login() {
+            const u = document.getElementById('log-user').value;
+            const p = document.getElementById('log-pass').value;
+            
+            const params = new URLSearchParams();
+            params.append('username', u);
+            params.append('password', p);
+
+            try {
+                const res = await fetch(`${API_URL}/token`, { method: 'POST', body: params });
+                if(res.ok) {
+                    const data = await res.json();
+                    // Guardamos la sesión en el navegador
+                    localStorage.setItem('access_token', data.access_token);
+                    localStorage.setItem('username', u);
+                    localStorage.setItem('rol', data.rol);
+                    localStorage.setItem('user_id', data.user_id);
+                    
+                    // Redirección inteligente dependiendo de quién entra
+                    if(data.rol === 'chef') {
+                        window.location.href = 'chef_panel.html';
+                    } else {
+                        window.location.href = 'cocinero_panel.html';
+                    }
+                } else {
+                    alert('Usuario o contraseña incorrectos.');
+                }
+            } catch(e) { alert("Error de conexión al servidor."); }
+        }
+
+        async function registrar() {
+            const u = document.getElementById('reg-user').value;
+            const p = document.getElementById('reg-pass').value;
+
+            if(!u || !p) { alert("Por favor, llena todos los campos."); return; }
+
+            try {
+                const res = await fetch(`${API_URL}/api/registro`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: u, password: p })
+                });
+
+                if(res.ok) {
+                    alert('✅ Cuenta de cocinero creada con éxito. Ahora por favor inicia sesión.');
+                    toggleForms(); // Volvemos a la pantalla de login
+                    document.getElementById('log-user').value = u; // Autocompletamos el usuario
+                    document.getElementById('reg-user').value = '';
+                    document.getElementById('reg-pass').value = '';
+                } else {
+                    const error = await res.json();
+                    alert(error.detail || 'Error al crear el usuario. Posiblemente ya exista.');
+                }
+            } catch(e) { alert("Error de conexión al servidor."); }
+        }
+    </script>
+</body>
+</html>

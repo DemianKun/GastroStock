@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>GastroStock | Panel Chef</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body { background-color: #020617; color: #cbd5e1; font-family: sans-serif; }
+        .glass-card { background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(255,255,255,0.05); }
+        .nav-btn.active { background: rgba(249, 115, 22, 0.1); border-left: 4px solid #f97316; color: white; }
+        .animate-fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+
+    <aside class="w-64 glass-card border-r border-white/5 flex flex-col p-6">
+        <!-- Logo -->
+        <div class="mb-8 flex items-center gap-3">
+            <img src="img/logo.jpg" alt="GastroStock Logo" class="w-12 h-12 rounded-full border-2 border-orange-500 object-cover shadow-[0_0_15px_rgba(249,115,22,0.3)]">
+            <div>
+                <h1 class="text-xl font-black text-white italic tracking-tighter leading-none">Gastro<span class="text-orange-500">Stock</span></h1>
+                <p class="text-[7px] text-slate-500 uppercase tracking-[0.2em] font-bold mt-1">Inventario Inteligente</p>
+            </div>
+        </div>
+        <!-- Badge prototipo -->
+        <div class="flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 px-2 py-1 rounded-full mb-6 w-fit">
+            <span class="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse inline-block"></span>
+            <span class="text-[8px] font-black text-orange-400 uppercase tracking-widest">Prototipo v1.0</span>
+        </div>
+        <nav class="space-y-3 flex-1">
+            <button onclick="showSection('dashboard')" id="btn-dashboard" class="nav-btn active w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all">
+                <i class="fa-solid fa-table-columns"></i> Dashboard
+            </button>
+            <button onclick="showSection('recetario')" id="btn-recetario" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-slate-400">
+                <i class="fa-solid fa-book-open"></i> Recetario
+            </button>
+            <button onclick="showSection('stats')" id="btn-stats" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-slate-400">
+                <i class="fa-solid fa-chart-line"></i> Estadísticas
+            </button>
+            <button onclick="showSection('config')" id="btn-config" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-slate-400">
+                <i class="fa-solid fa-gear"></i> Configuración
+            </button>
+            <button onclick="showSection('logica')" id="btn-logica" class="nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-slate-400">
+                <i class="fa-solid fa-brain"></i> Lógica Prolog
+            </button>
+        </nav>
+        <button onclick="cerrarSesion()" class="text-xs text-red-500 font-bold hover:text-white mt-auto py-4 border-t border-white/5 transition-colors">CERRAR SESIÓN</button>
+    </aside>
+
+    <main class="flex-1 overflow-y-auto p-10 bg-slate-950/50">
+        
+        <header class="flex justify-between items-center mb-6">
+            <div>
+                <h2 id="chef-name" class="text-4xl font-black text-white italic">Chef Principal</h2>
+                <p id="clock" class="text-slate-500 font-mono text-sm mt-1 font-bold tracking-widest text-orange-400">--:--:--</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="glass-card px-6 py-3 rounded-2xl flex items-center gap-4">
+                    <span class="text-[10px] uppercase font-bold text-slate-400 tracking-widest">Temperatura</span>
+                    <span id="temp-val" class="text-2xl font-black text-blue-400">0.0°C</span>
+                </div>
+            </div>
+        </header>
+
+        <div id="error-box" class="hidden mb-6 bg-red-500/20 border border-red-500/50 text-red-400 p-4 rounded-xl text-sm font-bold flex items-center gap-3 shadow-lg">
+            <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+            <span id="error-msg">Error de conexión.</span>
+        </div>
+
+        <section id="sec-dashboard" class="space-y-8 animate-fade-in">
+
+            <!-- Tarjeta estado IA -->
+            <div id="ia-status-card" class="glass-card p-4 rounded-2xl border border-green-500/20 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span class="w-3 h-3 rounded-full bg-green-400 animate-pulse inline-block"></span>
+                    <div>
+                        <p class="text-xs font-black text-green-400 uppercase tracking-widest">IA Activa — Analizando inventario</p>
+                        <p id="ia-status-msg" class="text-[10px] text-slate-500 mt-0.5">Cargando predicción...</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="text-[9px] text-slate-600 uppercase font-bold">2 sensores activos</p>
+                    <p class="text-[9px] text-slate-700 uppercase font-bold">4 disponibles en v. comercial</p>
+                </div>
+            </div>
+
+            <h3 class="text-xl font-bold text-white mb-4">Inventario en Tiempo Real</h3>
+            <div id="basculas-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            
+            <h3 class="text-xl font-bold text-orange-500 mt-10 mb-4">🔥 Tareas en Cocina</h3>
+            <div id="lista-tareas" class="glass-card p-6 rounded-2xl space-y-4"></div>
+        </section>
+
+        <section id="sec-recetario" class="hidden space-y-8 animate-fade-in">
+            <h3 class="text-xl font-bold text-white mb-4">Gestor de Recetas</h3>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-2 glass-card p-8 rounded-[2rem]">
+                    <div class="flex items-center justify-between gap-3 mb-6">
+                        <h4 class="text-sm uppercase font-bold text-slate-500 tracking-widest">Menú Actual</h4>
+                        <div class="flex gap-2">
+                            <button onclick="borrarMenus()" class="bg-red-600/90 hover:bg-red-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg">Borrar menús</button>
+                            <button onclick="borrarHistorial()" class="bg-rose-700/90 hover:bg-rose-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg">Borrar historial</button>
+                        </div>
+                    </div>
+                    <div id="lista-recetas" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                </div>
+                <div class="glass-card p-8 rounded-[2rem]">
+                    <h4 class="text-sm uppercase font-bold text-orange-500 tracking-widest mb-6">Crear Nueva</h4>
+                    <div class="space-y-4">
+                        <input type="text" id="receta-nombre" placeholder="Nombre del Platillo" class="w-full bg-slate-900 border border-white/10 rounded-lg p-3 text-sm text-white outline-none">
+                        <input type="text" id="receta-desc" placeholder="Descripción" class="w-full bg-slate-900 border border-white/10 rounded-lg p-3 text-sm text-white outline-none">
+                        <div class="flex gap-2">
+                            <select id="ingrediente-select" class="w-1/2 bg-slate-900 border border-white/10 rounded-lg p-2 text-sm text-white"></select>
+                            <input type="number" id="ingrediente-peso" step="0.05" placeholder="KG" class="w-1/4 bg-slate-900 border border-white/10 rounded-lg p-2 text-sm text-white text-center">
+                            <button onclick="agregarIngredienteLista()" class="w-1/4 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-500 transition-colors">+</button>
+                        </div>
+                        <ul id="lista-ingredientes-nuevos" class="mt-3 space-y-1"></ul>
+                        <button onclick="guardarReceta()" class="w-full bg-orange-600 hover:bg-orange-500 text-white py-3 rounded-lg text-xs font-bold transition-all shadow-lg">AGREGAR AL MENÚ</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="sec-stats" class="hidden space-y-8 animate-fade-in">
+            <div class="flex justify-between items-center bg-slate-900/50 p-6 rounded-3xl border border-white/5 shadow-2xl">
+                <div>
+                    <h3 class="text-2xl font-black text-white italic mb-1">Análisis y Modelado de Datos</h3>
+                    <p class="text-sm text-slate-500">Métricas procesadas por algoritmos en Python.</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <span id="modo-indicador" class="text-[10px] bg-slate-500/20 text-slate-400 px-3 py-1 rounded-full border border-slate-500/30 font-bold uppercase tracking-widest">Cargando...</span>
+                    <button onclick="exportarCSV()" class="flex items-center gap-2 bg-orange-600 hover:bg-orange-500 text-white px-5 py-2 rounded-xl text-xs font-black transition-all shadow-lg active:scale-95">
+                        <i class="fa-solid fa-file-csv text-lg"></i> EXPORTAR A CSV
+                    </button>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="glass-card p-6 rounded-[2rem] h-[350px] flex flex-col">
+                    <h4 class="text-sm uppercase font-bold text-slate-400 tracking-widest mb-4">Tendencia Temporal (Líneas)</h4>
+                    <div class="flex-1 relative"><canvas id="chartLineas"></canvas></div>
+                </div>
+                <div class="glass-card p-6 rounded-[2rem] h-[350px] flex flex-col">
+                    <h4 class="text-sm uppercase font-bold text-slate-400 tracking-widest mb-4">Niveles de Inventario (Barras)</h4>
+                    <div class="flex-1 relative"><canvas id="chartBarras"></canvas></div>
+                </div>
+                <div class="glass-card p-6 rounded-[2rem] h-[350px] flex flex-col">
+                    <h4 class="text-sm uppercase font-bold text-slate-400 tracking-widest mb-4">Carga de Trabajo (Circular)</h4>
+                    <div class="flex-1 relative"><canvas id="chartCircular"></canvas></div>
+                </div>
+                <div class="glass-card p-6 rounded-[2rem] h-[350px] flex flex-col">
+                    <h4 class="text-sm uppercase font-bold text-orange-500 tracking-widest mb-4">Densidad Espectral / Periodograma</h4>
+                    <div class="flex-1 relative"><canvas id="chartEspectral"></canvas></div>
+                </div>
+            </div>
+        </section>
+
+        <section id="sec-config" class="hidden space-y-8 animate-fade-in">
+            <h3 class="text-xl font-bold text-white mb-4">Configuración de Básculas</h3>
+            <div id="config-form-list" class="grid grid-cols-1 md:grid-cols-2 gap-8"></div>
+        </section>
+
+        <!-- SECCIÓN: LÓGICA PROLOG -->
+        <section id="sec-logica" class="hidden space-y-6 animate-fade-in">
+            <!-- Header con Toggle Mode -->
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center bg-slate-900/50 p-6 rounded-3xl border border-purple-500/20 shadow-2xl gap-4">
+                <div>
+                    <h3 class="text-2xl font-black text-white italic mb-1">Diagnóstico Lógico <span class="text-purple-400">Inteligente</span></h3>
+                    <p class="text-sm text-slate-500">Evaluación autónoma del inventario utilizando el motor de inferencia de GastroStock.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="cargarLogicaProlog()" class="bg-orange-600 hover:bg-orange-500 text-white px-5 py-2.5 rounded-xl text-xs font-black transition-all shadow-[0_0_15px_rgba(234,88,12,0.4)]">
+                        EVALUAR INVENTARIO
+                    </button>
+                    <button onclick="toggleDeveloperMode()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-600 px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+                        <i class="fa-solid fa-code"></i> Modo Desarrollador
+                    </button>
+                </div>
+            </div>
+
+            <!-- VISTA COMERCIAL: Diagnóstico real del inventario -->
+            <div>
+                <h4 class="text-sm uppercase font-bold text-orange-500 tracking-widest mb-4">Estado Actual del Inventario</h4>
+                <div id="logica-diagnosticos" class="grid grid-cols-1 md:grid-cols-3 gap-4"></div>
+            </div>
+
+            <!-- VISTA TÉCNICA (Oculta por defecto) -->
+            <div id="prolog-tech-view" class="hidden space-y-6 mt-8 pt-8 border-t border-white/10">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span>
+                    <h3 class="text-lg font-black text-white uppercase tracking-widest">Motor de Inferencia Prolog (Para Evaluación)</h3>
+                </div>
+                <p class="text-xs text-slate-400 mb-6">Archivo de reglas asociado: <code class="bg-black/50 px-2 py-1 rounded text-purple-300">backend/logic/gastrostock_rules.pl</code></p>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <!-- Consulta lógica -->
+                    <div class="glass-card p-6 rounded-[2rem]">
+                        <div class="flex justify-between items-start mb-3">
+                            <h4 class="text-sm uppercase font-bold text-orange-500 tracking-widest">Consulta Lógica</h4>
+                        </div>
+                        <pre id="logica-consulta" class="bg-black/60 p-4 rounded-xl text-green-400 text-xs overflow-auto whitespace-pre-wrap">Cargando...</pre>
+                    </div>
+
+                    <!-- Cláusula de Horn -->
+                    <div class="glass-card p-6 rounded-[2rem]">
+                        <div class="flex justify-between items-start mb-3">
+                            <h4 class="text-sm uppercase font-bold text-orange-500 tracking-widest">Cláusula de Horn</h4>
+                        </div>
+                        <pre id="logica-horn" class="bg-black/60 p-4 rounded-xl text-blue-400 text-xs overflow-auto whitespace-pre-wrap">Cargando...</pre>
+                    </div>
+
+                    <!-- Resolución SLD -->
+                    <div class="glass-card p-6 rounded-[2rem] lg:col-span-2">
+                        <div class="flex justify-between items-start mb-3">
+                            <h4 class="text-sm uppercase font-bold text-orange-500 tracking-widest">Resolución SLD paso a paso</h4>
+                        </div>
+                        <ol id="logica-sld" class="space-y-2 text-xs text-slate-300"></ol>
+                    </div>
+
+                    <!-- Operador de corte -->
+                    <div class="glass-card p-6 rounded-[2rem]">
+                        <div class="flex justify-between items-start mb-3">
+                            <h4 class="text-sm uppercase font-bold text-orange-500 tracking-widest">Operador de Corte (!)</h4>
+                        </div>
+                        <p id="logica-corte" class="text-xs text-yellow-300 bg-black/60 p-4 rounded-xl">Cargando...</p>
+                    </div>
+
+                    <!-- Unificación -->
+                    <div class="glass-card p-6 rounded-[2rem]">
+                        <div class="flex justify-between items-start mb-3">
+                            <h4 class="text-sm uppercase font-bold text-orange-500 tracking-widest">Unificación de Variables</h4>
+                        </div>
+                        <p id="logica-unificacion" class="text-xs text-cyan-300 bg-black/60 p-4 rounded-xl">Cargando...</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        const API_URL = "http://localhost:8000";
+        let token = localStorage.getItem('access_token');
+        const username = localStorage.getItem('username');
+        
+        if (!token) {
+            console.warn("No hay token de sesión. Usando modo de pruebas visual.");
+            token = "TEST_MODE"; 
+        }
+
+        if (username) {
+            // Si el usuario es 'chef', mostrar 'Chef Principal'
+            // Si es JOSE_COCINA, mostrar 'Chef Jose'
+            const base = username.toLowerCase() === 'chef'
+                ? 'Principal'
+                : username.split('_')[0].charAt(0).toUpperCase() + username.split('_')[0].slice(1).toLowerCase();
+            document.getElementById('chef-name').innerText = `Chef ${base}`;
+        }
+
+        let chartLineas, chartBarras, chartCircular, chartEspectral;
+        let lastData = null; // Guardamos los últimos datos para el CSV
+        let recetaTemporal = {};
+
+        // RELOJ EN TIEMPO REAL
+        setInterval(() => { 
+            document.getElementById('clock').innerText = new Date().toLocaleTimeString('es-MX', { hour12: true }); 
+        }, 1000);
+
+        function cerrarSesion() { 
+            localStorage.clear(); 
+            window.location.href = 'index.html'; 
+        }
+
+        function mostrarError(mensaje) {
+            const errBox = document.getElementById('error-box');
+            errBox.classList.remove('hidden');
+            document.getElementById('error-msg').innerText = mensaje;
+            setTimeout(() => errBox.classList.add('hidden'), 5000);
+        }
+
+        function showSection(name) {
+            document.querySelectorAll('section').forEach(s => s.classList.add('hidden'));
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active', 'text-white'));
+            
+            document.getElementById(`sec-${name}`).classList.remove('hidden');
+            document.getElementById(`btn-${name}`).classList.add('active', 'text-white');
+            
+            if (name === 'dashboard') updateDashboard();
+            if (name === 'stats') cargarGrafica();
+            if (name === 'config') cargarConfiguracion();
+            if (name === 'logica') cargarLogicaProlog();
+            if (name === 'recetario') { 
+                cargarRecetas(); 
+                actualizarOpcionesIngredientes(); 
+            }
+        }
+
+        // --- EXPORTAR A CSV (PARA INNOVACIÓN / RÚBRICA) ---
+        function exportarCSV() {
+            if (!lastData || !lastData.lineas.labels.length) { 
+                alert("No hay datos suficientes para exportar."); 
+                return; 
+            }
+            
+            const nombres = (lastData.barras && lastData.barras.labels.length >= 6) ? lastData.barras.labels : ['B1','B2','B3','B4','B5','B6'];
+            let csv = `Hora,Temp_Camara,${nombres.join(',')}\n`;
+
+            lastData.lineas.labels.forEach((label, i) => {
+                csv += `${label},${lastData.lineas.temp[i]},${lastData.lineas.b1[i]},${lastData.lineas.b2[i]},${lastData.lineas.b3[i]},${lastData.lineas.b4[i]},${lastData.lineas.b5[i]},${lastData.lineas.b6[i]}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute("download", `GastroStock_Reporte_${new Date().toLocaleDateString()}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // --- CARGA DE GRÁFICAS Y ANÁLISIS ESPECTRAL ---
+        async function cargarGrafica() {
+            try {
+                const res = await fetch(`${API_URL}/api/estadisticas/avanzadas`, { 
+                    headers: { 'Authorization': `Bearer ${token}` } 
+                });
+                
+                if (!res.ok) throw new Error("Backend error.");
+                
+                lastData = await res.json();
+                document.getElementById('modo-indicador').innerText = "DATOS EN VIVO (MYSQL)";
+                document.getElementById('modo-indicador').className = "text-[10px] bg-green-500/20 text-green-400 px-3 py-1 rounded-full border border-green-500/30 font-bold uppercase tracking-widest";
+            } catch (error) {
+                document.getElementById('modo-indicador').innerText = "MODO OFFLINE";
+                document.getElementById('modo-indicador').className = "text-[10px] bg-red-500/20 text-red-400 px-3 py-1 rounded-full border border-red-500/30 font-bold uppercase tracking-widest";
+                lastData = {
+                    lineas: { labels: ['10:00','10:10','10:20'], temp:[4,5,4], b1:[5,4,3], b2:[2,2,1], b3:[4,4,4], b4:[1,1,0.5], b5:[3,2,1], b6:[5,5,5] },
+                    barras: { labels: ['Papas','Carne','Tomate','Cebolla','Pollo','Aceite'], data:[3,1.5,4,0.5,2,4.5] },
+                    circular: { labels:['Pendientes','En Proceso','Completadas'], data:[2,5,8] },
+                    espectral: { frecuencias:[0.1, 0.2], densidad:[10, 5] }
+                };
+            }
+
+            Chart.defaults.color = '#cbd5e1';
+            const nombres = (lastData.barras && lastData.barras.labels.length >= 6) ? lastData.barras.labels : ['B1','B2','B3','B4','B5','B6'];
+
+            // 1. Gráfico de Líneas
+            if (chartLineas) chartLineas.destroy();
+            chartLineas = new Chart(document.getElementById('chartLineas').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: lastData.lineas.labels,
+                    datasets: [
+                        { label: 'Temperatura', data: lastData.lineas.temp, borderColor: '#3b82f6', borderDash: [5, 5], tension: 0.3 },
+                        { label: nombres[0], data: lastData.lineas.b1, borderColor: '#f97316' },
+                        { label: nombres[1], data: lastData.lineas.b2, borderColor: '#ef4444' },
+                        { label: nombres[2], data: lastData.lineas.b3, borderColor: '#22c55e' },
+                        { label: nombres[3], data: lastData.lineas.b4, borderColor: '#eab308' },
+                        { label: nombres[4], data: lastData.lineas.b5, borderColor: '#a855f7' },
+                        { label: nombres[5], data: lastData.lineas.b6, borderColor: '#ec4899' }
+                    ]
+                },
+                options: { 
+                    maintainAspectRatio: false, 
+                    plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 9 } } } } 
+                }
+            });
+
+            // 2. Gráfico de Barras
+            if (chartBarras) chartBarras.destroy();
+            chartBarras = new Chart(document.getElementById('chartBarras').getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: lastData.barras.labels,
+                    datasets: [{ label: 'Stock (KG)', data: lastData.barras.data, backgroundColor: '#f97316' }]
+                },
+                options: { maintainAspectRatio: false }
+            });
+
+            // 3. Gráfico Circular
+            if (chartCircular) chartCircular.destroy();
+            chartCircular = new Chart(document.getElementById('chartCircular').getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: lastData.circular.labels,
+                    datasets: [{ data: lastData.circular.data, backgroundColor: ['#3b82f6', '#f97316', '#64748b'] }]
+                },
+                options: { maintainAspectRatio: false, cutout: '70%' }
+            });
+
+            // 4. Gráfico Espectral (Periodograma)
+            if (chartEspectral) chartEspectral.destroy();
+            chartEspectral = new Chart(document.getElementById('chartEspectral').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: lastData.espectral.frecuencias.map(f => typeof f === 'number' ? f.toFixed(3) : f),
+                    datasets: [{ 
+                        label: 'Densidad', 
+                        data: lastData.espectral.densidad, 
+                        borderColor: '#8b5cf6', 
+                        fill: true, 
+                        backgroundColor: 'rgba(139, 92, 246, 0.2)', 
+                        pointRadius: 0 
+                    }]
+                },
+                options: { maintainAspectRatio: false }
+            });
+        }
+
+        // --- FUNCIONES DASHBOARD ---
+        async function updateDashboard() {
+            try {
+                const res = await fetch(`${API_URL}/api/dashboard/mapeado`, { 
+                    headers: { 'Authorization': `Bearer ${token}` } 
+                });
+                
+                if (res.ok) {
+                    const data = await res.json();
+                    document.getElementById('temp-val').innerText = `${data.temperatura.toFixed(1)}°C`;
+                    
+                    const inventarioReal = Array.isArray(data.inventario) && data.inventario.length
+                        ? data.inventario
+                        : null;
+
+                    if (!inventarioReal) {
+                        document.getElementById('basculas-grid').innerHTML = `
+                            <div class="glass-card p-6 rounded-2xl border border-amber-500/30 relative">
+                                <div class="absolute top-3 right-3 flex items-center gap-1">
+                                    <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse inline-block"></span>
+                                    <span class="text-[9px] font-black text-amber-400 uppercase tracking-widest">DEMO</span>
+                                </div>
+                                <div class="flex justify-between items-end mb-4 mt-2">
+                                    <span class="text-sm font-bold text-slate-400 uppercase">Sensor demo</span>
+                                    <span class="text-[10px] text-slate-400 uppercase tracking-widest">Sin lectura</span>
+                                </div>
+                                <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                                    <div class="bg-slate-700 h-full transition-all duration-500" style="width: 12%"></div>
+                                </div>
+                                <p class="text-[9px] text-slate-500 uppercase tracking-widest mt-2 font-bold">Esperando lecturas reales del hardware</p>
+                            </div>`;
+                    } else {
+                        document.getElementById('basculas-grid').innerHTML = inventarioReal.map((item, idx) => {
+                            const pct = Math.min((item.peso / 5) * 100, 100);
+                            const barColor = pct > 50 ? 'bg-orange-500' : pct > 20 ? 'bg-yellow-500' : 'bg-red-500';
+                            return `<div class="glass-card p-6 rounded-2xl border border-orange-500/30 relative">
+                                <div class="absolute top-3 right-3 flex items-center gap-1">
+                                    <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse inline-block"></span>
+                                    <span class="text-[9px] font-black text-green-400 uppercase tracking-widest">ACTIVO</span>
+                                </div>
+                                <div class="flex justify-between items-end mb-4 mt-2">
+                                    <span class="text-sm font-bold text-slate-400 uppercase">${item.nombre || `Sensor ${idx + 1}`}</span>
+                                    <span class="text-2xl font-black text-white">${Number(item.peso || 0).toFixed(2)} KG</span>
+                                </div>
+                                <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                                    <div class="${barColor} h-full transition-all duration-500" style="width: ${pct}%"></div>
+                                </div>
+                                <p class="text-[9px] text-slate-500 uppercase tracking-widest mt-2 font-bold">Lectura en tiempo real desde la báscula</p>
+                            </div>`;
+                        }).join('');
+                    }
+
+                    // Actualizar tarjeta de estado IA con predicción real
+                    try {
+                        const resIA = await fetch(`${API_URL}/api/prediccion?n=10`, { headers: { 'Authorization': `Bearer ${token}` } });
+                        if (resIA.ok) {
+                            const iaData = await resIA.json();
+                            const alertas = iaData.alertas_activas || 0;
+                            const iaMsg = document.getElementById('ia-status-msg');
+                            if (alertas > 0) {
+                                iaMsg.innerHTML = `<span class="text-yellow-400 font-bold">⚠️ ${alertas} alerta(s) detectada(s) — Revisar inventario</span>`;
+                            } else {
+                                iaMsg.textContent = `Stock estable · ${iaData.total_productos} productos monitoreados · Sin alertas`;
+                            }
+                        }
+                    } catch(e) { /* silencioso */ }
+                }
+
+                const resT = await fetch(`${API_URL}/api/tareas/activas`, { 
+                    headers: { 'Authorization': `Bearer ${token}` } 
+                });
+                
+                if (resT.ok) {
+                    const tareas = await resT.json();
+                    document.getElementById('lista-tareas').innerHTML = tareas.length ? tareas.map(t => `
+                        <div class="bg-black/40 p-4 rounded-xl border-l-4 ${t.estado === 'EN_PROCESO' ? 'border-orange-500' : 'border-blue-500'}">
+                            <p class="text-sm font-bold text-white">${t.receta}</p>
+                            <p class="text-[10px] text-slate-500 uppercase mt-1">Responsable: ${t.cocinero} | Estado: ${t.estado}</p>
+                        </div>
+                    `).join('') : '<p class="text-sm text-slate-500 italic">No hay órdenes en proceso en este momento.</p>';
+                }
+            } catch (e) { 
+                console.error("Reconectando Dashboard..."); 
+            }
+        }
+
+        // --- FUNCIONES CONFIGURACIÓN ---
+        async function cargarConfiguracion() {
+            try {
+                const res = await fetch(`${API_URL}/api/inventario/config`, { 
+                    headers: { 'Authorization': `Bearer ${token}` } 
+                });
+                const config = await res.json();
+                
+                document.getElementById('config-form-list').innerHTML = config.map(item => `
+                    <div class="glass-card p-6 rounded-2xl">
+                        <span class="text-orange-500 font-black mb-4 block">${item.id_bascula.toUpperCase()}</span>
+                        
+                        <label class="block text-[10px] uppercase font-bold text-slate-500 mb-1">Nombre de Producto</label>
+                        <input type="text" id="name-${item.id_bascula}" value="${item.nombre_producto}" class="w-full bg-slate-900 mb-4 border border-white/10 rounded-lg p-2 text-white">
+                        
+                        <label class="block text-[10px] uppercase font-bold text-slate-500 mb-1">Stock Mínimo (KG)</label>
+                        <input type="number" id="min-${item.id_bascula}" value="${item.stock_minimo}" class="w-full bg-slate-900 mb-4 border border-white/10 rounded-lg p-2 text-white">
+                        
+                        <button onclick="guardarConfig('${item.id_bascula}')" class="w-full bg-orange-600 hover:bg-orange-500 text-white py-2 rounded-lg text-xs font-bold transition-all shadow-md">ACTUALIZAR</button>
+                    </div>`).join('');
+            } catch (e) {
+                document.getElementById('config-form-list').innerHTML = `<p class="text-red-500 text-sm font-bold">❌ Error cargando configuración.</p>`;
+            }
+        }
+
+        async function guardarConfig(id) {
+            try {
+                const res = await fetch(`${API_URL}/api/inventario/config/${id}`, {
+                    method: 'PUT', 
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ 
+                        nombre_producto: document.getElementById(`name-${id}`).value, 
+                        stock_minimo: parseFloat(document.getElementById(`min-${id}`).value) 
+                    })
+                });
+                
+                if (res.ok) {
+                    alert("Báscula actualizada correctamente.");
+                    updateDashboard();
+                }
+            } catch (e) {
+                mostrarError("Error guardando configuración.");
+            }
+        }
+
+        // --- FUNCIONES RECETARIO ---
+        async function actualizarOpcionesIngredientes() {
+            try {
+                const res = await fetch(`${API_URL}/api/inventario/config`, { 
+                    headers: { 'Authorization': `Bearer ${token}` } 
+                });
+                if (res.ok) {
+                    const configs = await res.json();
+                    document.getElementById('ingrediente-select').innerHTML = configs.map(c => `<option value="${c.nombre_producto}">${c.nombre_producto}</option>`).join('');
+                }
+            } catch (e) {
+                console.error("Error ingredientes");
+            }
+        }
+
+        function agregarIngredienteLista() {
+            const ing = document.getElementById('ingrediente-select').value;
+            const peso = parseFloat(document.getElementById('ingrediente-peso').value);
+            if (peso > 0) { 
+                recetaTemporal[ing] = peso; 
+                dibujarListaIngredientes(); 
+                document.getElementById('ingrediente-peso').value = '';
+            }
+        }
+
+        function dibujarListaIngredientes() {
+            document.getElementById('lista-ingredientes-nuevos').innerHTML = Object.entries(recetaTemporal).map(([ing, p]) => `
+                <li class="flex justify-between items-center text-xs bg-slate-800 p-2 rounded-lg border border-white/5 mb-1">
+                    <span class="text-white font-bold">${ing}</span>
+                    <span class="text-orange-400">${p} KG <button onclick="quitarIngrediente('${ing}')" class="text-red-500 hover:text-red-400 font-bold text-sm ml-3">✖</button></span>
+                </li>`).join('');
+        }
+
+        function quitarIngrediente(ing) {
+            delete recetaTemporal[ing];
+            dibujarListaIngredientes();
+        }
+
+        async function cargarRecetas() {
+            try {
+                const res = await fetch(`${API_URL}/api/recetas`, { 
+                    headers: { 'Authorization': `Bearer ${token}` } 
+                });
+                if (!res.ok) throw new Error("Error del servidor");
+                const recetas = await res.json();
+                
+                const contenedor = document.getElementById('lista-recetas');
+                if (recetas.length === 0) {
+                    contenedor.innerHTML = '<p class="text-sm text-slate-500 italic">No hay recetas guardadas.</p>';
+                    return;
+                }
+
+                contenedor.innerHTML = recetas.map(r => {
+                    let ingredientesObj = typeof r.ingredientes_json === 'string' ? JSON.parse(r.ingredientes_json) : (r.ingredientes_json || {});
+                    return `
+                    <div class="bg-black/40 p-5 rounded-2xl border border-white/5 shadow-lg">
+                        <h5 class="text-white font-black italic text-lg mb-1">${r.nombre}</h5>
+                        <p class="text-xs text-slate-400 mb-4">${r.descripcion}</p>
+                        <div class="bg-slate-900/50 p-3 rounded-lg border border-white/5">
+                            <p class="text-[9px] uppercase font-bold text-orange-500 mb-2">Ingredientes Requeridos:</p>
+                            <ul class="space-y-1">
+                                ${Object.entries(ingredientesObj).map(([ing, cant]) => `
+                                    <li class="text-xs text-slate-300 flex justify-between">
+                                        <span>${ing}</span> <span class="font-bold text-white">${parseFloat(cant).toFixed(3)} KG</span>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+            } catch (e) {
+                document.getElementById('lista-recetas').innerHTML = `<p class="text-red-500 text-sm font-bold">❌ Error cargando recetas.</p>`;
+            }
+        }
+
+        async function borrarMenus() {
+            if (!confirm('¿Quieres borrar todos los menús guardados?')) return;
+            try {
+                const res = await fetch(`${API_URL}/api/recetas`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error('No se pudieron borrar los menús');
+                alert('✅ Menús borrados correctamente.');
+                cargarRecetas();
+            } catch (e) {
+                mostrarError('No se pudo borrar el menú.');
+            }
+        }
+
+        async function borrarHistorial() {
+            if (!confirm('¿Quieres borrar todo el historial de la página (menús, tareas, compras y mediciones)?')) return;
+            try {
+                const res = await fetch(`${API_URL}/api/historial`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) throw new Error('No se pudo borrar el historial');
+                alert('✅ Historial borrado correctamente.');
+                cargarRecetas();
+                updateDashboard();
+            } catch (e) {
+                mostrarError('No se pudo borrar el historial.');
+            }
+        }
+
+        async function guardarReceta() {
+            const nombre = document.getElementById('receta-nombre').value;
+            const desc = document.getElementById('receta-desc').value;
+
+            if (!nombre) { alert("Por favor ponle un nombre a la receta."); return; }
+            if (Object.keys(recetaTemporal).length === 0) { alert("Debes añadir al menos 1 ingrediente."); return; }
+
+            try {
+                const res = await fetch(`${API_URL}/api/recetas`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                    body: JSON.stringify({ nombre: nombre, descripcion: desc, ingredientes_json: recetaTemporal })
+                });
+
+                if (res.ok) {
+                    alert('✅ Platillo agregado exitosamente.');
+                    document.getElementById('receta-nombre').value = '';
+                    document.getElementById('receta-desc').value = '';
+                    recetaTemporal = {}; 
+                    dibujarListaIngredientes(); 
+                    cargarRecetas(); 
+                }
+            } catch (e) { 
+                mostrarError("Error guardando receta."); 
+            }
+        }
+
+        // Iniciar el sistema en la pestaña del dashboard
+        showSection('dashboard');
+        
+        // Actualizar el dashboard principal cada 5 segundos de forma automática
+        setInterval(updateDashboard, 5000);
+
+        // --- LÓGICA PROLOG ---
+        async function cargarLogicaProlog() {
+            try {
+                // 1. Demo lógica (valores de ejemplo del .pl)
+                const demoRes = await fetch(`${API_URL}/api/logica/diagnostico`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const demo = await demoRes.json();
+
+                document.getElementById('logica-consulta').innerText =
+                    `${demo.consulta_ejemplo}\n` +
+                    `Resultado: ${demo.resultado_consulta}\n\n` +
+                    `Representación lógica:\n${demo.representacion_logica}\n\n` +
+                    `Representación clausada:\n${demo.representacion_clausada}`;
+
+                document.getElementById('logica-horn').innerText =
+                    `${demo.clausula_horn}\n\n` +
+                    `Archivo de reglas: ${demo.archivo_reglas}`;
+
+                document.getElementById('logica-sld').innerHTML = demo.resolucion_sld.map(paso => `
+                    <li class="bg-black/40 border border-white/5 rounded-xl p-3 font-mono">
+                        ${paso}
+                    </li>
+                `).join('');
+
+                document.getElementById('logica-corte').innerText = demo.operador_corte;
+                document.getElementById('logica-unificacion').innerText = demo.unificacion;
+
+                // 2. Diagnóstico con inventario real de MySQL
+                const realRes = await fetch(`${API_URL}/api/logica/inventario`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const real = await realRes.json();
+
+                const colorDiag = {
+                    'estable':    'text-green-400  border-green-500/30',
+                    'bajo_stock': 'text-yellow-400 border-yellow-500/30',
+                    'agotado':    'text-red-400    border-red-500/30'
+                };
+                const iconDiag = {
+                    'estable':    '✅',
+                    'bajo_stock': '⚠️',
+                    'agotado':    '❌'
+                };
+
+                document.getElementById('logica-diagnosticos').innerHTML = real.diagnosticos.map(item => `
+                    <div class="bg-black/40 border ${colorDiag[item.diagnostico] || 'border-white/5'} rounded-2xl p-4 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <p class="text-white font-black text-sm">${item.insumo}</p>
+                            <span class="text-lg">${iconDiag[item.diagnostico] || '❓'}</span>
+                        </div>
+                        <p class="text-xs text-slate-400">Stock actual: <span class="text-white font-bold">${item.stock_actual} kg</span></p>
+                        <p class="text-xs text-slate-400">Stock mínimo: <span class="text-white font-bold">${item.stock_minimo} kg</span></p>
+                        <p class="text-xs font-black uppercase tracking-widest ${colorDiag[item.diagnostico]?.split(' ')[0] || 'text-slate-400'}">
+                            ${item.diagnostico}
+                        </p>
+                        <p class="text-[10px] text-orange-400 font-semibold">${item.accion}</p>
+                        <p class="text-[9px] text-slate-600 font-mono mt-1 leading-relaxed">${item.regla_aplicada}</p>
+                        <p class="text-[9px] text-slate-700">${item.uso_corte ? '⚡ Corte (!) activado' : 'Sin corte — regla base'}</p>
+                    </div>
+                `).join('');
+
+            } catch (error) {
+                console.error(error);
+                mostrarError("No se pudo cargar la capa lógica Prolog.");
+            }
+        }
+
+        // Toggle para mostrar/ocultar los detalles técnicos de Prolog
+        function toggleDeveloperMode() {
+            const devView = document.getElementById('prolog-tech-view');
+            if (devView.classList.contains('hidden')) {
+                devView.classList.remove('hidden');
+                devView.classList.add('animate-fade-in');
+            } else {
+                devView.classList.add('hidden');
+                devView.classList.remove('animate-fade-in');
+            }
+        }
+    </script>
+
+</body>
+</html>
